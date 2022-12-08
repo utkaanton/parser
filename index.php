@@ -22,7 +22,7 @@
             echo '</table>';
         }
 
-        public function add_to_db(){//добавление записи в БД
+        private function connect_db(){
             $host='127.0.0.1';
             $db = 'lotsdb';
             $user = 'root';
@@ -35,12 +35,16 @@
                 $pdo = new PDO($dsn, $user, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             
                 if ($pdo) {
-                   
+                   return $pdo;
                 }
             } 
             catch (PDOException $e) {
                 die($e->getMessage());
             } 
+        }
+
+        public function add_to_db(){//добавление записи в БД
+            $pdo = $this->connect_db();
             if($this->check_repeat($pdo)){
                 try {
                     $sql = "INSERT INTO lots(number_tarid,number_lot,link_lot,start_price,date_event,status_traid) values (?,?,?,?,?,?);";
