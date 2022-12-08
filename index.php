@@ -1,8 +1,8 @@
 <?php
     //header('Content-type: text/plain; charset=utf-8');
    
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
     class Lot{
         private $number_tarid, $number_lot, $link, $start_price, $date_event, $status;
 
@@ -50,6 +50,7 @@
                     $sql = "INSERT INTO lots(number_tarid,number_lot,link_lot,start_price,date_event,status_traid) values (?,?,?,?,?,?);";
                     $STH = $pdo->prepare($sql);
                     $STH->execute(array($this->number_tarid,$this->number_lot,$this->link,$this->start_price,$this->date_event,$this->status));
+                    $pdo = NULL;
                     echo "Запись добавлена в базу";   
                 }
                 catch (PDOException $e) {
@@ -71,56 +72,84 @@
         }
     }
 
-    function time_valid($date_event){//ф.приводит дату в корректный формат
-        $day='';
-        $month='';
-        $year='';
-        $time='';
-        $date_event=ltrim ($date_event);
-        for($i=0;$i<17;$i=$i+1){
-            if($i<2) $day=$day.$date_event[$i];
-            else if ($i<5 && $date_event[$i]!='.')$month=$month.$date_event[$i];
-            else if ($i<10 && $date_event[$i]!='.')$year=$year.$date_event[$i];
-            else if ($i>11 && $i<17 && $date_event[$i]!='.')$time=$time.$date_event[$i];
+    class Parser{
+        private $html, $position_lot;
+        private $number_trade, $number_lot, $link, $start_price, $date_event, $status;
+        private $data_lot;
+
+        function __construct($html, $position_lot){
+            $this->html=$html;
+            $this->position_lot=$position_lot;
         }
-        return($year.'-'.$month.'-'.$day.' '.$time);
-    }
 
-    function price_valid($price){//ф.приводит цену в корректный формат
-        $res='';
-        for($i=0;$i<strlen($price);$i=$i+1){
-            if($price[$i]=='0')$res=$res.$price[$i];
-            else if ($price[$i]=='1')$res=$res.$price[$i];
-            else if ($price[$i]=='2')$res=$res.$price[$i];
-            else if ($price[$i]=='3')$res=$res.$price[$i];
-            else if ($price[$i]=='4')$res=$res.$price[$i];
-            else if ($price[$i]=='5')$res=$res.$price[$i];
-            else if ($price[$i]=='6')$res=$res.$price[$i];
-            else if ($price[$i]=='7')$res=$res.$price[$i];
-            else if ($price[$i]=='8')$res=$res.$price[$i];
-            else if ($price[$i]=='9')$res=$res.$price[$i];
-            else if ($price[$i]==',')break;
+        private function serch_data(){//ф. ищет данные лота
+            preg_match_all('#<tr class="gridRow">(.+?)</tr>#su', $this->html, $list_lot);//получаем список лотов
+    
+            preg_match_all('#<a[^>]*?>(.*?)</a>#si', $list_lot[1][$this->position_lot-1], $number_trade);//получаем номер торга
+            preg_match_all('#<a[^>]*?>(.*?)</a>#si', $list_lot[1][$this->position_lot-1], $number_lot);//получаем номер лота
+            preg_match_all('#<a.*?href=["\'](.*?)["\'].*?>#i', $list_lot[1][$this->position_lot-1], $link);//получаем ссылку
+            preg_match_all('#<td[^>]*?>(.*?)</td>#su', $list_lot[1][$this->position_lot-1], $start_price);//получаем цену
+            preg_match_all('#<td[^>]*?>(.*?)</td>#si', $list_lot[1][$this->position_lot-1], $date_event);//получаем дату проведения
+            preg_match_all('#<td[^>]*?>(.*?)</td>#si', $list_lot[1][$this->position_lot-1], $status);//получаем статус
+
+            $this->number_lot=$number_lot[1][2];
+            $this->number_trade=$number_trade[1][0];
+            $this->link=$link[1][2];
+            $this->start_price=$start_price[1][4];
+            $this->date_event=$date_event[1][6];
+            $this->status=$status[1][8];
         }
-        return $res;
-    }
+        private function valid_data(){
+            $this->link_valid();
+            $this->date_valid();
+            $this->price_valid();
+        }
+        private function link_valid(){//ф. приводит ссылку в корректный формат
+            $this->link=preg_replace("/^/", 'http://www.arbitat.ru/', $this->link);
+        }
+        private function date_valid(){//ф.приводит дату в корректный формат
+            $day='';
+            $month='';
+            $year='';
+            $time='';
+            $this->date_event=ltrim ($this->date_event);
+            for($i=0;$i<17;$i=$i+1){
+                if($i<2) $day=$day.$this->date_event[$i];
+                else if ($i<5 && $this->date_event[$i]!='.')$month=$month.$this->date_event[$i];
+                else if ($i<10 && $this->date_event[$i]!='.')$year=$year.$this->date_event[$i];
+                else if ($i>11 && $i<17 && $this->date_event[$i]!='.')$time=$time.$this->date_event[$i];
+            }
+            $this->date_event=$year.'-'.$month.'-'.$day.' '.$time;
+        }
+        private function price_valid(){//ф.приводит цену в корректный формат
+            $res='';
+            for($i=0;$i<strlen($this->start_price);$i=$i+1){
+                if($this->start_price[$i]=='0')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='1')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='2')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='3')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='4')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='5')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='6')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='7')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='8')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]=='9')$res=$res.$this->start_price[$i];
+                else if ($this->start_price[$i]==',')break;
+            }
+            $this->start_price=$res;
+        }
 
-    function serch_data($html,$position_lot){//парсер
-        preg_match_all('#<tr class="gridRow">(.+?)</tr>#su', $html, $list_lot);
-
-        preg_match_all('#<a[^>]*?>(.*?)</a>#si', $list_lot[1][$position_lot-1], $number_tarid);//[1][0]
-        preg_match_all('#<a[^>]*?>(.*?)</a>#si', $list_lot[1][$position_lot-1], $number_lot);//[1][2]
-        preg_match_all('#<a.*?href=["\'](.*?)["\'].*?>#i', $list_lot[1][$position_lot-1], $link);//[1][2]
-        preg_match_all('#<td[^>]*?>(.*?)</td>#su', $list_lot[1][$position_lot-1], $start_price);//[1][4]
-        preg_match_all('#<td[^>]*?>(.*?)</td>#si', $list_lot[1][$position_lot-1], $date_event);//[1][6]
-        preg_match_all('#<td[^>]*?>(.*?)</td>#si', $list_lot[1][$position_lot-1], $status);//[1][8]
-
-        $link[1][2]=preg_replace("/^/", 'http://www.arbitat.ru/', $link[1][2]);
-        $date_event[1][6]=time_valid($date_event[1][6]);
-        $start_price[1][4]=price_valid($start_price[1][4]);
-        
- 
-        $data_lot = [$number_tarid[1][0],$number_lot[1][2],$link[1][2],$start_price[1][4],$date_event[1][6],$status[1][8]];
-        return $data_lot;
+        public function get_lot(){
+            $this->serch_data();
+            $this->valid_data();
+            $this->data_lot[0]=$this->number_trade;
+            $this->data_lot[1]=$this->number_lot;
+            $this->data_lot[2]=$this->link;
+            $this->data_lot[3]=$this->start_price;
+            $this->data_lot[4]=$this->date_event;
+            $this->data_lot[5]=$this->status;
+            return $this->data_lot;
+        }
     }
 
     function get_page2(){
@@ -155,19 +184,24 @@
 
         return $result;
     }
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////   
     $html= file_get_contents('http://www.arbitat.ru/');
-    
-    $obj_1 = new Lot(serch_data($html,3));
-    $obj_2 = new Lot(serch_data($html,4));
-    $obj_3 = new Lot(serch_data($html,6));
-    
+
+    $parser=new Parser($html,3);
+    $obj_1 = new Lot($parser->get_lot());
+
+    $parser=new Parser($html,4);
+    $obj_2 = new Lot($parser->get_lot());
+
+    $parser=new Parser($html,6);
+    $obj_3 = new Lot($parser->get_lot());
+
     $obj_1->show_data();
     $obj_2->show_data();
     $obj_3->show_data();
-    
-    echo get_page2();
+
+    //echo get_page2();
     $obj_1->add_to_db();
     $obj_2->add_to_db();
     $obj_3->add_to_db();
